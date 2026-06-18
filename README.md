@@ -68,6 +68,32 @@ uvicorn app:app --reload
 # Open http://localhost:8000
 ```
 
+## Deployment / Production
+
+Run the watcher service locally:
+
+```bash
+python -u run_agents.py
+```
+Notes:
+- Adapters prefer `PlatformMessage.metadata['emo']` when present; they fall back to parsing `PlatformMessage.content` as JSON or raw text.
+- If you see `session.already_connected`, stop other processes using the same Band agent keys before starting this service.
+
+Session diagnostics and key rotation helpers:
+
+- Validate your agent API keys:
+
+```bash
+python scripts/band_session_diagnostics.py
+```
+
+- Rotate/update keys interactively:
+
+```bash
+python scripts/update_agent_keys.py
+```
+
+
 ## Research paper
 
 *"Episodic Memory Objects as a Handoff Primitive in Multi-Agent Enterprise Workflows"*
