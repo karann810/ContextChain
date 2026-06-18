@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ContextChain — Procurement Intelligence</title>
+<style>
+:root{
+  --bg:#0f0f11;--bg2:#17171a;--bg3:#1e1e22;--bg4:#252529;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --text:#e8e6e0;--muted:#888780;--dim:#555450;
+  --purple:#7F77DD;--purple-dim:rgba(127,119,221,0.12);
+  --teal:#1D9E75;--teal-dim:rgba(29,158,117,0.1);
+  --amber:#EF9F27;--amber-dim:rgba(239,159,39,0.1);
+  --coral:#D85A30;--coral-dim:rgba(216,90,48,0.1);
+  --green:#7AB648;--green-dim:rgba(122,182,72,0.1);
+  --red:#E24B4A;--red-dim:rgba(226,75,74,0.1);
+  --featherless:#2FA8C9;--featherless-dim:rgba(47,168,201,0.1);
+  --aiml:#C96B2F;--aiml-dim:rgba(201,107,47,0.1);
+  --mono:'SF Mono','Fira Code',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --radius:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;min-height:100vh}
+
+/* ── Header ── */
+header{border-bottom:0.5px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;gap:10px}
+.logo{font-size:15px;font-weight:600;letter-spacing:-0.3px}
+.logo span{color:var(--purple)}
+.logo-sub{font-size:10px;color:var(--dim);letter-spacing:.07em;text-transform:uppercase}
+.header-badges{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.hbadge{font-size:10px;padding:3px 9px;border-radius:5px;border:0.5px solid;letter-spacing:.04em;font-weight:500}
+.hbadge-band{background:var(--purple-dim);color:var(--purple);border-color:rgba(127,119,221,0.3)}
+.hbadge-featherless{background:var(--featherless-dim);color:var(--featherless);border-color:rgba(47,168,201,0.3)}
+.hbadge-aiml{background:var(--aiml-dim);color:var(--aiml);border-color:rgba(201,107,47,0.3)}
+
+/* ── Layout ── */
+.layout{display:grid;grid-template-columns:380px 1fr;min-height:calc(100vh - 49px)}
+.left{border-right:0.5px solid var(--border);padding:22px 20px;display:flex;flex-direction:column;gap:18px;overflow-y:auto}
+.right{padding:22px 24px;overflow-y:auto}
+
+/* ── Labels ── */
+.label{font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;margin-bottom:8px}
+
+/* ── Input ── */
+textarea{width:100%;background:var(--bg3);border:0.5px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.6;padding:11px 13px;resize:vertical;min-height:100px;outline:none;transition:border-color .15s}
+textarea:focus{border-color:var(--purple)}
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.preset{font-size:11px;padding:3px 10px;border-radius:5px;border:0.5px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s}
+.preset:hover{border-color:var(--purple);color:var(--text)}
+.run-btn{width:100%;padding:10px;border-radius:var(--radius);border:none;background:var(--purple);color:#fff;font-size:14px;font-weight:500;cursor:pointer;margin-top:6px;transition:opacity .15s}
+.run-btn:hover{opacity:.85}
+.run-btn:disabled{opacity:.3;cursor:default}
+
+/* ── Model config panel ── */
+.model-panel{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px;font-size:12px}
+.model-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid var(--border)}
+.model-row:last-child{border-bottom:none}
+.model-agent{color:var(--muted);min-width:90px;flex-shrink:0;font-size:11px}
+.model-platform{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:500;flex-shrink:0}
+.mp-featherless{background:var(--featherless-dim);color:var(--featherless)}
+.mp-aiml{background:var(--aiml-dim);color:var(--aiml)}
+.mp-openai{background:var(--purple-dim);color:var(--purple)}
+.mp-fallback{background:rgba(255,255,255,0.05);color:var(--muted)}
+.model-name{color:var(--dim);font-family:var(--mono);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.key-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.key-ok{background:var(--green)}
+.key-missing{background:var(--red)}
+
+/* ── EMO live state ── */
+.emo-state{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px}
+.emo-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:3px 0;border-bottom:0.5px solid var(--border)}
+.emo-row:last-child{border-bottom:none}
+.emo-k{color:var(--muted);font-size:11px}
+.emo-v{font-family:var(--mono);font-size:11px;color:var(--text)}
+
+/* ── Right: feed ── */
+.feed-empty{color:var(--dim);font-size:13px;padding:48px 0;text-align:center}
+.section-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:12px}
+
+/* ── Final summary ── */
+.final-box{background:var(--bg2);border:0.5px solid var(--border);border-radius:10px;padding:16px;margin-bottom:20px;display:none;animation:fadein .3s ease}
+.final-box.show{display:block}
+.final-rec{font-size:17px;font-weight:600;margin-bottom:4px}
+.final-meta{font-size:12px;color:var(--muted);line-height:1.8}
+
+/* ── Agent timeline ── */
+.agent-feed{display:flex;flex-direction:column}
+.agent-node{position:relative;padding-left:26px;animation:fadein .25s ease}
+.agent-node:not(:last-child)::before{content:'';position:absolute;left:7px;top:24px;bottom:0;width:1px;background:var(--border2)}
+.dot{position:absolute;left:2px;top:12px;width:10px;height:10px;border-radius:50%;border:2px solid var(--bg)}
+.dot-purple{background:var(--purple)}
+.dot-teal{background:var(--teal)}
+.dot-coral{background:var(--coral)}
+.dot-amber{background:var(--amber)}
+.dot-dim{background:var(--dim)}
+.pulse{animation:pulse 1.1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.card{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);padding:13px 15px;margin-bottom:9px}
+.card.thinking{border-color:rgba(127,119,221,0.25)}
+.card.overturned{border-color:rgba(226,75,74,0.3)}
+.card.skipped{opacity:.4}
+
+.card-header{display:flex;align-items:center;gap:7px;margin-bottom:7px;flex-wrap:wrap}
+.agent-name{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.thinking-label{font-size:12px;color:var(--muted);font-style:italic}
+.emo-ver{font-size:10px;font-family:var(--mono);padding:1px 6px;border-radius:4px;background:var(--purple-dim);color:var(--purple);margin-left:auto}
+
+/* platform badge on card */
+.card-platform{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:500}
+.cp-featherless{background:var(--featherless-dim);color:var(--featherless)}
+.cp-aiml{background:var(--aiml-dim);color:var(--aiml)}
+.cp-openai{background:var(--purple-dim);color:var(--purple)}
+
+.decision{font-size:13px;color:var(--text);margin-bottom:6px;line-height:1.5}
+
+.conf-row{display:flex;align-items:center;gap:8px;margin:6px 0}
+.conf-track{flex:1;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.conf-fill{height:100%;border-radius:2px;transition:width .7s ease}
+.conf-num{font-size:11px;color:var(--muted);min-width:30px;text-align:right;font-family:var(--mono)}
+
+/* Diff */
+.diff-box{background:var(--red-dim);border:0.5px solid rgba(226,75,74,0.2);border-radius:6px;padding:9px 12px;margin-top:8px}
+.diff-label{font-size:10px;font-weight:600;color:var(--red);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px}
+.diff-arrow{display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
+.diff-from{text-decoration:line-through;color:var(--dim)}
+.diff-to{color:var(--teal);font-weight:500}
+.diff-reason{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
+
+/* Risk */
+.risk-box{background:var(--amber-dim);border:0.5px solid rgba(239,159,39,0.2);border-radius:6px;padding:8px 11px;margin-top:7px}
+.risk-box li{font-size:12px;color:var(--amber);list-style:none;padding:2px 0}
+.risk-box li::before{content:'⚠ '}
+
+/* Hallucination */
+.hall-box{background:var(--red-dim);border:0.5px solid rgba(226,75,74,0.15);border-radius:6px;padding:7px 11px;margin-top:7px}
+.hall-box li{font-size:11px;color:#F09595;list-style:none;padding:1px 0}
+.hall-box li::before{content:'⚡ '}
+
+/* Detail toggle */
+.toggle{font-size:11px;color:var(--dim);cursor:pointer;border:none;background:none;padding:5px 0 0;display:flex;align-items:center;gap:5px;transition:color .15s}
+.toggle:hover{color:var(--muted)}
+.detail{display:none;margin-top:10px;border-top:0.5px solid var(--border);padding-top:10px}
+.detail.open{display:block}
+
+/* Evidence list */
+.ev-list{list-style:none}
+.ev-list li{font-size:12px;color:var(--muted);padding:2px 0 2px 14px;position:relative;line-height:1.5}
+.ev-list li::before{content:'';position:absolute;left:0;top:9px;width:5px;height:1px;background:var(--border2)}
+.ev-list li.crit{color:#F09595}
+.ev-list li.crit::before{background:var(--red)}
+.ev-list li.rag{color:#7BBACC}
+.ev-list li.rag::before{background:var(--featherless)}
+
+/* Reasoning chain */
+.chain{list-style:none;counter-reset:s}
+.chain li{font-size:12px;color:var(--muted);padding:2px 0 2px 22px;position:relative;counter-increment:s;line-height:1.5}
+.chain li::before{content:counter(s);position:absolute;left:0;font-size:10px;color:var(--purple);font-family:var(--mono);top:4px}
+
+/* Rejected alts */
+.rej-list{display:flex;flex-direction:column;gap:4px;margin-top:7px}
+.rej-item{display:flex;align-items:center;gap:7px;font-size:12px}
+.rej-name{color:var(--text);font-weight:500;min-width:80px;flex-shrink:0}
+.rej-reason{color:var(--muted);flex:1;font-size:11px}
+.rej-flags{display:flex;gap:4px;flex-shrink:0}
+.risk-pill{font-size:10px;padding:1px 6px;border-radius:10px;font-family:var(--mono)}
+.rl{background:var(--green-dim);color:var(--green)}
+.rm{background:var(--amber-dim);color:var(--amber)}
+.rh{background:var(--red-dim);color:#F09595}
+.comp-pill{font-size:10px;padding:1px 6px;border-radius:10px;background:var(--red-dim);color:#F09595}
+
+/* Router node */
+.router{margin:2px 0 9px 26px;padding:7px 11px;background:var(--bg3);border:0.5px dashed var(--border2);border-radius:6px;font-size:12px;color:var(--muted);animation:fadein .25s ease}
+.router.trigger{border-color:rgba(239,159,39,0.35);color:var(--amber)}
+.router.skip{border-color:rgba(122,182,72,0.3);color:var(--green)}
+
+/* Error */
+.error-box{background:var(--red-dim);border:0.5px solid rgba(226,75,74,0.25);border-radius:var(--radius);padding:11px 14px;color:#F09595;font-size:13px;margin-bottom:14px;display:none}
+.error-box.show{display:block}
+
+/* Tags */
+.tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:500}
+.tg{background:var(--green-dim);color:var(--green)}
+.tr{background:var(--red-dim);color:#F09595}
+.ta{background:var(--amber-dim);color:var(--amber)}
+.tp{background:var(--purple-dim);color:var(--purple)}
+
+footer{text-align:center;padding:24px;color:var(--dim);font-size:11px;border-top:0.5px solid var(--border)}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">Context<span>Chain</span></div>
+    <div class="logo-sub">Episodic Memory Objects · Multi-Agent Coordination</div>
+  </div>
+  <div class="header-badges">
+    <span class="hbadge hbadge-band">Band</span>
+    <span class="hbadge hbadge-featherless">Featherless AI</span>
+    <span class="hbadge hbadge-aiml">AIML API</span>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- ── LEFT ── -->
+<div class="left">
+
+  <div>
+    <div class="label">Procurement Request</div>
+    <textarea id="inp" placeholder="Describe what you need to procure...">We need 50TB cloud object storage. Must be SOC2 Type II compliant, data must stay in India (ap-south-1 region), under $2,000/month. Critical: SOC2 scope must explicitly cover object-level logging. Needed within 3 weeks.</textarea>
+    <div class="presets">
+      <button class="preset" onclick="setPreset('simple')">Simple</button>
+      <button class="preset" onclick="setPreset('complex')">Complex compliance</button>
+      <button class="preset" onclick="setPreset('ambiguous')">Ambiguous</button>
+    </div>
+    <button class="run-btn" id="run-btn" onclick="run()">Run pipeline →</button>
+  </div>
+
+  <!-- Model config -->
+  <div>
+    <div class="label">Model configuration</div>
+    <div class="model-panel" id="model-panel">
+      <div style="font-size:11px;color:var(--dim)">Loading…</div>
+    </div>
+  </div>
+
+  <!-- EMO live state -->
+  <div>
+    <div class="label">EMO live state</div>
+    <div class="emo-state">
+      <div class="emo-row"><span class="emo-k">task_id</span><span class="emo-v" id="em-task">—</span></div>
+      <div class="emo-row"><span class="emo-k">emo_version</span><span class="emo-v" id="em-ver">—</span></div>
+      <div class="emo-row"><span class="emo-k">agents_run</span><span class="emo-v" id="em-agents">0</span></div>
+      <div class="emo-row"><span class="emo-k">chain_confidence</span><span class="emo-v" id="em-conf">—</span></div>
+      <div class="emo-row"><span class="emo-k">was_overturned</span><span class="emo-v" id="em-ov">—</span></div>
+      <div class="emo-row"><span class="emo-k">hallucination_flags</span><span class="emo-v" id="em-hall">0</span></div>
+    </div>
+  </div>
+
+  <div style="flex:1"></div>
+  <div style="font-size:11px;color:var(--dim);line-height:1.7;padding-top:4px">
+    <strong style="color:var(--muted)">How it works:</strong><br>
+    Agents pass structured <span style="color:var(--purple)">Episodic Memory Objects</span> via Band —
+    not strings. Agent 2 uses a <span style="color:var(--featherless)">Featherless</span> open-source
+    model over RAG-retrieved vendor facts. Agent 3 uses
+    <span style="color:var(--aiml)">AIML API</span> DeepSeek-R1 reasoning to audit compliance.
+    Low confidence → automatic risk audit. Decisions can be overturned with full version history.
+  </div>
+</div>
+
+<!-- ── RIGHT ── -->
+<div class="right">
+  <div class="error-box" id="err"></div>
+  <div class="final-box" id="final-box">
+    <div class="label" style="margin-bottom:6px">Final recommendation</div>
+    <div class="final-rec" id="final-rec">—</div>
+    <div class="final-meta" id="final-meta"></div>
+  </div>
+  <div class="card" id="timeline-box" style="margin-bottom:16px;display:none">
+    <div class="label">Decision timeline</div>
+    <div id="timeline-list" style="margin-top:8px;color:var(--muted);font-size:13px">No entries yet.</div>
+  </div>
+  <div class="section-title" id="feed-title" style="display:none">Decision archaeology — live</div>
+  <div id="feed">
+    <div class="feed-empty">Submit a procurement request to watch agents reason in real time.</div>
+  </div>
+</div>
+
+</div>
+
+<footer>ContextChain v4 · Band of Agents Hackathon 2026 · Featherless AI + AIML API + RAG + EMO</footer>
+
+<script>
+const PRESETS = {
+  simple:    "We need 10TB of cloud storage for team backups. No special compliance needed, just reliable and affordable. Budget around $100/month.",
+  complex:   "We need 50TB cloud object storage. Must be SOC2 Type II compliant, data must stay in India (ap-south-1 region), under $2,000/month. Critical: SOC2 scope must explicitly cover object-level logging. Needed within 3 weeks.",
+  ambiguous: "Need some storage for our app. Should be secure, not too expensive. We're in Europe I think. Our CTO mentioned something about compliance but not sure what exactly."
+};
+
+const AGENT_META = {
+  needs_analyzer_v1:      {label:"Agent 1 — Needs Analyzer",     dot:"dot-purple", color:"var(--purple)"},
+  vendor_intelligence_v1: {label:"Agent 2 — Vendor Intelligence", dot:"dot-teal",   color:"var(--teal)"},
+  risk_auditor_v1:        {label:"Agent 3 — Risk Auditor",        dot:"dot-coral",  color:"var(--coral)"},
+};
+
+// Platform → CSS class for badge on card
+const PLATFORM_CLASS = {
+  "Featherless":    "cp-featherless",
+  "AIML API":       "cp-aiml",
+  "OpenAI (fallback)": "cp-openai",
+};
+
+let agentsRun = 0;
+let modelConfig = {};
+let timeline = [];
+
+// ── Load model config on page load ──────────────────────────────────────────
+async function loadModels() {
+  try {
+    const r = await fetch('/api/models');
+    const data = await r.json();
+    modelConfig = data;
+    renderModelPanel(data);
+  } catch(e) {
+    document.getElementById('model-panel').innerHTML =
+      '<div style="font-size:11px;color:var(--dim)">Could not load model config</div>';
+  }
+}
+
+function renderModelPanel(data) {
+  const rows = Object.entries(data).map(([agent_id, cfg]) => {
+    const shortAgent = agent_id.replace('_v1','').replace('_',' ');
+    const pcls = PLATFORM_CLASS[cfg.platform] || 'mp-fallback';
+    const dotcls = cfg.key_configured ? 'key-ok' : 'key-missing';
+    const shortModel = cfg.model.split('/').pop();
+    return `<div class="model-row">
+      <span class="model-agent">${shortAgent}</span>
+      <span class="model-platform ${pcls}">${cfg.platform}</span>
+      <span class="model-name" title="${cfg.model}">${shortModel}</span>
+      <span class="key-dot ${dotcls}" title="${cfg.key_configured ? 'API key set' : 'API key missing — using fallback'}"></span>
+    </div>`;
+  }).join('');
+  document.getElementById('model-panel').innerHTML = rows ||
+    '<div style="font-size:11px;color:var(--dim)">No agents configured</div>';
+}
+
+function setPreset(k) { document.getElementById('inp').value = PRESETS[k]; }
+
+function confColor(c) { return c>=.8?'var(--green)':c>=.7?'var(--amber)':'var(--red)'; }
+function riskClass(r) { return r<.4?'rl':r<.7?'rm':'rh'; }
+
+function platformBadge(agent_id) {
+  const cfg = modelConfig[agent_id];
+  if (!cfg) return '';
+  const pcls = PLATFORM_CLASS[cfg.platform] || 'cp-openai';
+  return `<span class="card-platform ${pcls}">${cfg.platform}</span>`;
+}
+
+function updateEMO(data) {
+  if (data.task_id)         document.getElementById('em-task').textContent  = data.task_id;
+  if (data.emo_version)     document.getElementById('em-ver').textContent   = 'v' + data.emo_version;
+  if (agentsRun >= 0)       document.getElementById('em-agents').textContent = agentsRun;
+  if (data.chain_confidence!=null) document.getElementById('em-conf').textContent = (data.chain_confidence*100).toFixed(0)+'%';
+  if (data.was_overturned!=null)   document.getElementById('em-ov').textContent  = data.was_overturned ? 'YES' : 'no';
+  if (data.hallucination_flags)    document.getElementById('em-hall').textContent = data.hallucination_flags.length;
+}
+
+function renderTimeline() {
+  const box = document.getElementById('timeline-box');
+  const list = document.getElementById('timeline-list');
+  if (!timeline.length) {
+    box.style.display = 'none';
+    list.textContent = 'No entries yet.';
+    return;
+  }
+  box.style.display = 'block';
+  list.innerHTML = timeline.map((t,i)=>{
+    const agent = t.agent;
+    const dec = t.decision ? `<div style="font-weight:600;color:var(--text)">${t.decision}</div>` : '<div style="color:var(--dim)">(no decision)</div>';
+    const conf = t.confidence!=null ? `<div style="font-size:12px;color:${confColor(t.confidence)}">${Math.round(t.confidence*100)}%</div>` : '';
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;gap:8px;align-items:center;"><div style="font-size:12px;color:var(--muted);min-width:160px">${i+1}. ${agent}</div>${conf}</div>
+      ${dec}
+      <button class="toggle" onclick="toggleJSON(${i})">View EMO snapshot</button>
+      <pre id="emo-${i}" style="display:none;margin-top:8px;background:var(--bg3);padding:8px;border-radius:6px;color:var(--muted);font-size:12px;overflow:auto;max-height:180px">${JSON.stringify(t.emo||{},null,2)}</pre>
+    </div>`;
+  }).join('');
+}
+
+function toggleJSON(i){
+  const el = document.getElementById('emo-'+i);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// ── Agent card rendering ─────────────────────────────────────────────────────
+function agentStart(agent, data) {
+  const meta = AGENT_META[agent] || {label:agent, dot:'dot-dim', color:'var(--muted)'};
+  document.getElementById('feed').insertAdjacentHTML('beforeend', `
+    <div class="agent-node" id="node-${agent}">
+      <div class="dot ${meta.dot} pulse"></div>
+      <div class="card thinking" id="card-${agent}">
+        <div class="card-header">
+          <span class="agent-name" style="color:${meta.color}">${meta.label}</span>
+          ${platformBadge(agent)}
+        </div>
+        <div class="thinking-label">${data.message || 'Processing…'}</div>
+      </div>
+    </div>`);
+}
+
+function agentSkipped(agent, data) {
+  document.getElementById('feed').insertAdjacentHTML('beforeend', `
+    <div class="agent-node" id="node-${agent}">
+      <div class="dot dot-dim"></div>
+      <div class="card skipped">
+        <div class="card-header">
+          <span class="agent-name" style="color:var(--dim)">${AGENT_META[agent]?.label||agent}</span>
+          <span class="tag tg" style="font-size:10px">Skipped</span>
+        </div>
+        <div style="font-size:12px;color:var(--dim)">${data.reason}</div>
+      </div>
+    </div>`);
+}
+
+function agentComplete(agent, data) {
+  const node = document.getElementById('node-'+agent);
+  const card = document.getElementById('card-'+agent);
+  if (!node || !card) return;
+  node.querySelector('.dot').classList.remove('pulse');
+
+  const conf = data.confidence;
+  const isOv = !!data.revision;
+  card.className = 'card' + (isOv?' overturned':'');
+
+  // Evidence items
+  const evHTML = (data.evidence||[]).map(e => {
+    const isRag = e.content.startsWith('[KB:') || e.content.startsWith('[VERIFIED]');
+    const isCrit = e.critical;
+    const cls = isRag ? 'rag' : (isCrit ? 'crit' : '');
+    return `<li class="${cls}">${e.content.replace(/</g,'&lt;')}</li>`;
+  }).join('');
+
+  const chainHTML = (data.reasoning_chain||[]).map(r=>`<li>${r}</li>`).join('');
+
+  const rejHTML = (data.rejected_alternatives||[]).map(r=>`
+    <div class="rej-item">
+      <span class="rej-name">${r.name}</span>
+      <span class="rej-reason">${r.reason}</span>
+      <span class="rej-flags">
+        <span class="risk-pill ${riskClass(r.risk_score)}">${r.risk_score.toFixed(2)}</span>
+        ${r.compliance_gap?'<span class="comp-pill">compliance</span>':''}
+      </span>
+    </div>`).join('');
+
+  const riskHTML = (data.risk_findings||[]).length
+    ? `<div class="risk-box"><ul>${data.risk_findings.map(f=>`<li>${f}</li>`).join('')}</ul></div>` : '';
+
+  const hallHTML = (data.hallucination_flags||[]).length
+    ? `<div class="hall-box"><ul>${data.hallucination_flags.map(f=>`<li>${f}</li>`).join('')}</ul></div>` : '';
+
+  const diffHTML = data.revision ? `
+    <div class="diff-box">
+      <div class="diff-label">⚡ Decision overturned</div>
+      <div class="diff-arrow">
+        <span class="diff-from">${data.revision.removed}</span>
+        <span style="color:var(--dim)">→</span>
+        <span class="diff-to">${data.revision.added}</span>
+      </div>
+      <div class="diff-reason">${data.revision.reason}</div>
+    </div>` : '';
+
+  const pct = Math.round(conf*100);
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="agent-name" style="color:${AGENT_META[agent]?.color||'var(--muted)'}">${AGENT_META[agent]?.label||agent}</span>
+      ${isOv?'<span class="tag tr" style="font-size:10px">Overturned</span>':''}
+      ${platformBadge(agent)}
+      <span class="emo-ver">EMO v${data.emo_version}</span>
+    </div>
+    <div class="decision">${data.decision}</div>
+    <div class="conf-row">
+      <div class="conf-track"><div class="conf-fill" style="width:${pct}%;background:${confColor(conf)}"></div></div>
+      <span class="conf-num">${pct}%</span>
+    </div>
+    ${diffHTML}${riskHTML}${hallHTML}
+    <button class="toggle" onclick="toggleDetail('det-${agent}','arr-${agent}')">
+      <span id="arr-${agent}">▸</span> Evidence · Reasoning${rejHTML?' · Rejections':''}
+    </button>
+    <div class="detail" id="det-${agent}">
+      ${evHTML?`<div class="label" style="margin:0 0 5px">Evidence</div><ul class="ev-list">${evHTML}</ul>`:''}
+      ${chainHTML?`<div class="label" style="margin:10px 0 5px">Reasoning chain</div><ol class="chain">${chainHTML}</ol>`:''}
+      ${rejHTML?`<div class="label" style="margin:10px 0 5px">Rejected alternatives</div><div class="rej-list">${rejHTML}</div>`:''}
+    </div>`;
+}
+
+function addRouter(data) {
+  const triggered = data.next_agent === 'risk_auditor';
+  document.getElementById('feed').insertAdjacentHTML('beforeend', `
+    <div class="router ${triggered?'trigger':'skip'}">
+      ${triggered
+        ? `⚡ Confidence ${(data.confidence*100).toFixed(0)}% &lt; ${data.threshold*100}% — routing to Risk Auditor (AIML API DeepSeek-R1)`
+        : `✓ Confidence ${(data.confidence*100).toFixed(0)}% ≥ ${data.threshold*100}% — risk audit skipped`}
+    </div>`);
+}
+
+function toggleDetail(id, arrId) {
+  document.getElementById(id).classList.toggle('open');
+  const arr = document.getElementById(arrId);
+  if (arr) arr.textContent = document.getElementById(id).classList.contains('open') ? '▾' : '▸';
+}
+
+// ── Pipeline run ─────────────────────────────────────────────────────────────
+async function run() {
+  const input = document.getElementById('inp').value.trim();
+  if (!input) return;
+
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('feed').innerHTML = '';
+  document.getElementById('feed-title').style.display = 'block';
+  document.getElementById('final-box').classList.remove('show');
+  document.getElementById('err').classList.remove('show');
+  agentsRun = 0;
+
+  try {
+    const resp = await fetch('/api/run/stream', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({raw_input: input})
+    });
+    if (!resp.ok) { showErr((await resp.json()).detail || 'Error'); return; }
+
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue;
+        const raw = line.slice(5).trim();
+        if (!raw) continue;
+        try { handleEvent(JSON.parse(raw)); } catch(e) { console.error(e, raw); }
+      }
+    }
+  } catch(e) {
+    showErr('Network error: ' + e.message);
+  } finally {
+    document.getElementById('run-btn').disabled = false;
+  }
+}
+
+function handleEvent(ev) {
+  const {type, data} = ev;
+  if (type === 'pipeline_start') {
+    updateEMO({task_id: data.task_id, emo_version: 1});
+  }
+  else if (type === 'agent_start')    { agentStart(data.agent, data); }
+  else if (type === 'agent_skipped')  { agentSkipped(data.agent, data); }
+  else if (type === 'agent_complete') {
+    agentsRun++;
+    agentComplete(data.agent, data);
+    // capture timeline snapshot
+    timeline.push({agent: data.agent, decision: data.decision, confidence: data.confidence, emo: data.emo});
+    renderTimeline();
+    updateEMO({emo_version: data.emo_version, was_overturned: !!data.revision});
+  }
+  else if (type === 'router_decision') { addRouter(data); }
+  else if (type === 'pipeline_complete') {
+    const c = data.chain_confidence;
+    updateEMO({chain_confidence: c, was_overturned: data.was_overturned,
+               emo_version: data.emo_version, hallucination_flags: data.hallucination_flags||[]});
+    document.getElementById('final-rec').textContent = data.final_recommendation;
+    document.getElementById('final-meta').innerHTML =
+      `Chain confidence: <strong style="color:${confColor(c)}">${(c*100).toFixed(0)}%</strong> &nbsp;·&nbsp; `+
+      `Risk audit: <strong>${data.was_overturned
+        ? '<span style="color:var(--red)">Overturned</span>'
+        : '<span style="color:var(--green)">Confirmed</span>'}</strong> &nbsp;·&nbsp; `+
+      `Critical requirements: <strong>${data.critical_requirements_count}</strong> &nbsp;·&nbsp; `+
+      `EMO v${data.emo_version} &nbsp;·&nbsp; `+
+      `<span style="color:var(--featherless)">Featherless</span> + <span style="color:var(--aiml)">AIML API</span>`;
+    document.getElementById('final-box').classList.add('show');
+    // add final EMO snapshot to timeline
+    timeline.push({agent:'final', decision: data.final_recommendation, confidence: data.chain_confidence, emo: data.emo});
+    renderTimeline();
+    if ((data.hallucination_flags||[]).length) {
+      document.getElementById('feed').insertAdjacentHTML('beforeend',
+        `<div class="hall-box" style="margin-top:8px"><ul>${data.hallucination_flags.map(f=>`<li>${f}</li>`).join('')}</ul></div>`);
+    }
+  }
+  else if (type === 'error') { showErr(data.message || 'Pipeline error'); }
+}
+
+function showErr(msg) {
+  const b = document.getElementById('err');
+  b.textContent = 'Error: ' + msg;
+  b.classList.add('show');
+}
+
+// Load model config on page load
+loadModels();
+</script>
+</body>
+</html>
