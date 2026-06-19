@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: contextchain
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: NO_SEMANTIC
+        value: "1"
+      - key: FAST_VENDOR
+        value: "0"
+      - key: FAST_NEEDS
+        value: "0"
+      - key: AIMLAPI_KEY
+        sync: false

@@ -1,0 +1,12 @@
+.git
+.pytest_cache
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+.env
+uvicorn*.log
+embeddings_cache.pkl
+rag/embeddings_cache.pkl
