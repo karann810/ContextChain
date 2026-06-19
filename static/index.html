@@ -52,6 +52,28 @@ textarea:focus{border-color:var(--purple)}
 .run-btn{width:100%;padding:10px;border-radius:var(--radius);border:none;background:var(--purple);color:#fff;font-size:14px;font-weight:500;cursor:pointer;margin-top:6px;transition:opacity .15s}
 .run-btn:hover{opacity:.85}
 .run-btn:disabled{opacity:.3;cursor:default}
+.run-tools{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.ghost-btn{padding:10px 12px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;margin-top:6px}
+.ghost-btn:hover{border-color:var(--border2);color:var(--text);background:rgba(255,255,255,0.03)}
+.prompt-meter{display:flex;justify-content:space-between;align-items:center;margin-top:7px;font-size:11px;color:var(--dim)}
+.meter-good{color:var(--green)}
+.meter-warn{color:var(--amber)}
+.meter-bad{color:#F09595}
+
+/* Run progress */
+.run-status{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px}
+.status-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.status-title{font-size:12px;color:var(--text);font-weight:600}
+.status-sub{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.progress-line{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.step{border:0.5px solid var(--border);border-radius:6px;padding:7px 8px;background:var(--bg3);min-height:52px}
+.step-k{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim)}
+.step-v{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.25}
+.step.active{border-color:rgba(127,119,221,0.5);background:var(--purple-dim)}
+.step.active .step-k,.step.active .step-v{color:var(--purple)}
+.step.done{border-color:rgba(122,182,72,0.3);background:var(--green-dim)}
+.step.done .step-k,.step.done .step-v{color:var(--green)}
+.step.skip{border-color:rgba(136,135,128,0.25);opacity:.55}
 
 /* ── Model config panel ── */
 .model-panel{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px;font-size:12px}
@@ -84,6 +106,13 @@ textarea:focus{border-color:var(--purple)}
 .final-box.show{display:block}
 .final-rec{font-size:17px;font-weight:600;margin-bottom:4px}
 .final-meta{font-size:12px;color:var(--muted);line-height:1.8}
+.final-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.final-stat{background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;padding:9px}
+.final-stat-k{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim)}
+.final-stat-v{font-size:14px;color:var(--text);font-weight:600;margin-top:2px}
+.final-stat-v.good{color:var(--green)}
+.final-stat-v.warn{color:var(--amber)}
+.final-stat-v.bad{color:#F09595}
 
 /* ── Agent timeline ── */
 .agent-feed{display:flex;flex-direction:column}
@@ -116,6 +145,11 @@ textarea:focus{border-color:var(--purple)}
 .cp-openai{background:var(--purple-dim);color:var(--purple)}
 
 .decision{font-size:13px;color:var(--text);margin-bottom:6px;line-height:1.5}
+.card-summary{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.metric-chip{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--bg3);border:0.5px solid var(--border);color:var(--muted);font-family:var(--mono)}
+.metric-chip.good{background:var(--green-dim);border-color:rgba(122,182,72,0.2);color:var(--green)}
+.metric-chip.warn{background:var(--amber-dim);border-color:rgba(239,159,39,0.2);color:var(--amber)}
+.metric-chip.bad{background:var(--red-dim);border-color:rgba(226,75,74,0.2);color:#F09595}
 
 .conf-row{display:flex;align-items:center;gap:8px;margin:6px 0}
 .conf-track{flex:1;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
@@ -189,6 +223,11 @@ textarea:focus{border-color:var(--purple)}
 .tp{background:var(--purple-dim);color:var(--purple)}
 
 footer{text-align:center;padding:24px;color:var(--dim);font-size:11px;border-top:0.5px solid var(--border)}
+@media(max-width:900px){
+  .layout{grid-template-columns:1fr}
+  .left{border-right:none;border-bottom:0.5px solid var(--border)}
+  .progress-line,.final-grid{grid-template-columns:repeat(2,1fr)}
+}
 </style>
 </head>
 <body>
@@ -213,12 +252,35 @@ footer{text-align:center;padding:24px;color:var(--dim);font-size:11px;border-top
   <div>
     <div class="label">Procurement Request</div>
     <textarea id="inp" placeholder="Describe what you need to procure...">We need 50TB cloud object storage. Must be SOC2 Type II compliant, data must stay in India (ap-south-1 region), under $2,000/month. Critical: SOC2 scope must explicitly cover object-level logging. Needed within 3 weeks.</textarea>
+    <div class="prompt-meter">
+      <span id="prompt-meter-label">Ready</span>
+      <span id="prompt-meter-count">0 chars</span>
+    </div>
     <div class="presets">
       <button class="preset" onclick="setPreset('simple')">Simple</button>
       <button class="preset" onclick="setPreset('complex')">Complex compliance</button>
       <button class="preset" onclick="setPreset('ambiguous')">Ambiguous</button>
     </div>
-    <button class="run-btn" id="run-btn" onclick="run()">Run pipeline →</button>
+    <div class="run-tools">
+      <button class="run-btn" id="run-btn" onclick="run()">Run pipeline →</button>
+      <button class="ghost-btn" onclick="clearPrompt()">Clear</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="label">Run progress</div>
+    <div class="run-status">
+      <div class="status-head">
+        <div class="status-title" id="status-title">Idle</div>
+        <div class="status-sub" id="status-sub">No active run</div>
+      </div>
+      <div class="progress-line">
+        <div class="step" id="step-needs"><div class="step-k">1 Needs</div><div class="step-v">Waiting</div></div>
+        <div class="step" id="step-vendor"><div class="step-k">2 Vendor</div><div class="step-v">Waiting</div></div>
+        <div class="step" id="step-risk"><div class="step-k">3 Risk</div><div class="step-v">Conditional</div></div>
+        <div class="step" id="step-final"><div class="step-k">4 Final</div><div class="step-v">Waiting</div></div>
+      </div>
+    </div>
   </div>
 
   <!-- Model config -->
@@ -270,6 +332,7 @@ footer{text-align:center;padding:24px;color:var(--dim);font-size:11px;border-top
     <div class="label" style="margin-bottom:6px">Final recommendation</div>
     <div class="final-rec" id="final-rec">—</div>
     <div class="final-meta" id="final-meta"></div>
+    <div class="final-grid" id="final-grid"></div>
   </div>
   <div class="card" id="timeline-box" style="margin-bottom:16px;display:none">
     <div class="label">Decision timeline</div>
@@ -339,10 +402,64 @@ function renderModelPanel(data) {
     '<div style="font-size:11px;color:var(--dim)">No agents configured</div>';
 }
 
-function setPreset(k) { document.getElementById('inp').value = PRESETS[k]; }
+function setPreset(k) {
+  document.getElementById('inp').value = PRESETS[k];
+  updatePromptMeter();
+}
+
+function clearPrompt() {
+  document.getElementById('inp').value = '';
+  updatePromptMeter();
+  resetRunState();
+  document.getElementById('final-box').classList.remove('show');
+  document.getElementById('err').classList.remove('show');
+  document.getElementById('feed').innerHTML = '<div class="feed-empty">Submit a procurement request to watch agents reason in real time.</div>';
+  document.getElementById('feed-title').style.display = 'none';
+}
+
+function updatePromptMeter() {
+  const input = document.getElementById('inp').value.trim();
+  const label = document.getElementById('prompt-meter-label');
+  const count = document.getElementById('prompt-meter-count');
+  const hasCompliance = /soc2|soc 2|hipaa|iso|gdpr|compliance/i.test(input);
+  const hasRegion = /india|europe|us-|ap-|region|residency/i.test(input);
+  const hasBudget = /\$|budget|month|\/mo|under/i.test(input);
+  const score = [hasCompliance, hasRegion, hasBudget, input.length > 80].filter(Boolean).length;
+  count.textContent = `${input.length} chars`;
+  label.className = score >= 3 ? 'meter-good' : score >= 2 ? 'meter-warn' : 'meter-bad';
+  label.textContent = input ? (score >= 3 ? 'Specific request' : score >= 2 ? 'Usable request' : 'Needs detail') : 'Ready';
+}
 
 function confColor(c) { return c>=.8?'var(--green)':c>=.7?'var(--amber)':'var(--red)'; }
 function riskClass(r) { return r<.4?'rl':r<.7?'rm':'rh'; }
+
+const STEP_BY_AGENT = {
+  needs_analyzer_v1: 'step-needs',
+  vendor_intelligence_v1: 'step-vendor',
+  risk_auditor_v1: 'step-risk',
+  approval_packager_v1: 'step-final',
+};
+
+function setRunStatus(title, sub) {
+  document.getElementById('status-title').textContent = title;
+  document.getElementById('status-sub').textContent = sub;
+}
+
+function setStep(id, state, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'step' + (state ? ` ${state}` : '');
+  const val = el.querySelector('.step-v');
+  if (val) val.textContent = text;
+}
+
+function resetSteps() {
+  setRunStatus('Idle', 'No active run');
+  setStep('step-needs', '', 'Waiting');
+  setStep('step-vendor', '', 'Waiting');
+  setStep('step-risk', '', 'Conditional');
+  setStep('step-final', '', 'Waiting');
+}
 
 function platformBadge(agent_id) {
   const cfg = modelConfig[agent_id];
@@ -358,6 +475,21 @@ function updateEMO(data) {
   if (data.chain_confidence!=null) document.getElementById('em-conf').textContent = (data.chain_confidence*100).toFixed(0)+'%';
   if (data.was_overturned!=null)   document.getElementById('em-ov').textContent  = data.was_overturned ? 'YES' : 'no';
   if (data.hallucination_flags)    document.getElementById('em-hall').textContent = data.hallucination_flags.length;
+}
+
+function resetRunState() {
+  agentsRun = 0;
+  timeline = [];
+  renderTimeline();
+  resetSteps();
+  document.getElementById('feed').innerHTML = '';
+  document.getElementById('em-task').textContent = '—';
+  document.getElementById('em-ver').textContent = '—';
+  document.getElementById('em-agents').textContent = '0';
+  document.getElementById('em-conf').textContent = '—';
+  document.getElementById('em-ov').textContent = '—';
+  document.getElementById('em-hall').textContent = '0';
+  document.getElementById('final-grid').innerHTML = '';
 }
 
 function renderTimeline() {
@@ -454,6 +586,19 @@ function agentComplete(agent, data) {
   const hallHTML = (data.hallucination_flags||[]).length
     ? `<div class="hall-box"><ul>${data.hallucination_flags.map(f=>`<li>${f}</li>`).join('')}</ul></div>` : '';
 
+  const evidenceCount = (data.evidence||[]).length;
+  const criticalCount = (data.evidence||[]).filter(e=>e.critical).length;
+  const rejectionCount = (data.rejected_alternatives||[]).length;
+  const riskCount = (data.risk_findings||[]).length;
+  const hallCount = (data.hallucination_flags||[]).length;
+  const summaryHTML = `<div class="card-summary">
+    <span class="metric-chip good">${evidenceCount} evidence</span>
+    <span class="metric-chip ${criticalCount?'bad':''}">${criticalCount} critical</span>
+    ${rejectionCount?`<span class="metric-chip warn">${rejectionCount} rejected</span>`:''}
+    ${riskCount?`<span class="metric-chip warn">${riskCount} risk</span>`:''}
+    ${hallCount?`<span class="metric-chip bad">${hallCount} flags</span>`:''}
+  </div>`;
+
   const diffHTML = data.revision ? `
     <div class="diff-box">
       <div class="diff-label">⚡ Decision overturned</div>
@@ -478,6 +623,7 @@ function agentComplete(agent, data) {
       <div class="conf-track"><div class="conf-fill" style="width:${pct}%;background:${confColor(conf)}"></div></div>
       <span class="conf-num">${pct}%</span>
     </div>
+    ${summaryHTML}
     ${diffHTML}${riskHTML}${hallHTML}
     <button class="toggle" onclick="toggleDetail('det-${agent}','arr-${agent}')">
       <span id="arr-${agent}">▸</span> Evidence · Reasoning${rejHTML?' · Rejections':''}
@@ -511,11 +657,11 @@ async function run() {
   if (!input) return;
 
   document.getElementById('run-btn').disabled = true;
-  document.getElementById('feed').innerHTML = '';
+  resetRunState();
+  setRunStatus('Starting', 'Opening stream');
   document.getElementById('feed-title').style.display = 'block';
   document.getElementById('final-box').classList.remove('show');
   document.getElementById('err').classList.remove('show');
-  agentsRun = 0;
 
   try {
     const slider = document.getElementById('risk-threshold');
@@ -544,6 +690,7 @@ async function run() {
       }
     }
   } catch(e) {
+    setRunStatus('Error', 'Network failure');
     showErr('Network error: ' + e.message);
   } finally {
     document.getElementById('run-btn').disabled = false;
@@ -554,12 +701,24 @@ function handleEvent(ev) {
   const {type, data} = ev;
   if (type === 'pipeline_start') {
     updateEMO({task_id: data.task_id, emo_version: 1});
+    setRunStatus('Running', data.task_id);
   }
-  else if (type === 'agent_start')    { agentStart(data.agent, data); }
-  else if (type === 'agent_skipped')  { agentSkipped(data.agent, data); }
+  else if (type === 'agent_start')    {
+    const sid = STEP_BY_AGENT[data.agent];
+    if (sid) setStep(sid, 'active', 'Running');
+    setRunStatus('Running', data.label || data.agent);
+    agentStart(data.agent, data);
+  }
+  else if (type === 'agent_skipped')  {
+    const sid = STEP_BY_AGENT[data.agent];
+    if (sid) setStep(sid, 'skip', 'Skipped');
+    agentSkipped(data.agent, data);
+  }
   else if (type === 'agent_complete') {
     agentsRun++;
     agentComplete(data.agent, data);
+    const sid = STEP_BY_AGENT[data.agent];
+    if (sid) setStep(sid, 'done', `${Math.round(data.confidence*100)}%`);
     // capture timeline snapshot
     timeline.push({agent: data.agent, decision: data.decision, confidence: data.confidence, emo: data.emo});
     renderTimeline();
@@ -568,6 +727,8 @@ function handleEvent(ev) {
   else if (type === 'router_decision') { addRouter(data); }
   else if (type === 'pipeline_complete') {
     const c = data.chain_confidence;
+    setStep('step-final', 'done', `${Math.round(c*100)}%`);
+    setRunStatus('Complete', data.task_id || 'Final decision ready');
     updateEMO({chain_confidence: c, was_overturned: data.was_overturned,
                emo_version: data.emo_version, hallucination_flags: data.hallucination_flags||[]});
     document.getElementById('final-rec').textContent = data.final_recommendation;
@@ -580,6 +741,11 @@ function handleEvent(ev) {
       `EMO v${data.emo_version} &nbsp;·&nbsp; `+
       `<span style="color:var(--featherless)">Featherless</span> + <span style="color:var(--aiml)">AIML API</span>`;
     document.getElementById('final-box').classList.add('show');
+    document.getElementById('final-grid').innerHTML = `
+      <div class="final-stat"><div class="final-stat-k">Confidence</div><div class="final-stat-v ${c>=.8?'good':c>=.7?'warn':'bad'}">${Math.round(c*100)}%</div></div>
+      <div class="final-stat"><div class="final-stat-k">Risk audit</div><div class="final-stat-v ${data.was_overturned?'bad':'good'}">${data.was_overturned?'Overturned':'Confirmed'}</div></div>
+      <div class="final-stat"><div class="final-stat-k">Critical reqs</div><div class="final-stat-v">${data.critical_requirements_count}</div></div>
+      <div class="final-stat"><div class="final-stat-k">EMO version</div><div class="final-stat-v">v${data.emo_version}</div></div>`;
     // add final EMO snapshot to timeline
     timeline.push({agent:'final', decision: data.final_recommendation, confidence: data.chain_confidence, emo: data.emo});
     renderTimeline();
@@ -588,7 +754,10 @@ function handleEvent(ev) {
         `<div class="hall-box" style="margin-top:8px"><ul>${data.hallucination_flags.map(f=>`<li>${f}</li>`).join('')}</ul></div>`);
     }
   }
-  else if (type === 'error') { showErr(data.message || 'Pipeline error'); }
+  else if (type === 'error') {
+    setRunStatus('Error', 'Pipeline stopped');
+    showErr(data.message || 'Pipeline error');
+  }
 }
 
 function showErr(msg) {
@@ -605,6 +774,12 @@ if (sliderEl && sliderVal) {
   sliderEl.addEventListener('input', () => {
     sliderVal.textContent = (parseInt(sliderEl.value,10)/100).toFixed(2);
   });
+}
+
+const inputEl = document.getElementById('inp');
+if (inputEl) {
+  inputEl.addEventListener('input', updatePromptMeter);
+  updatePromptMeter();
 }
 
 // Load model config on page load
