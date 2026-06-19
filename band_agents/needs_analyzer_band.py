@@ -6,7 +6,7 @@ import logging
 from band import Agent
 from band.agent import SimpleAdapter
 
-from core.emo import EpisodicMemoryObject
+from emo import EpisodicMemoryObject
 from agents.needs_analyzer import run as run_needs_analyzer
 
 log = logging.getLogger(__name__)
@@ -35,9 +35,37 @@ class NeedsAnalyzerAdapter(SimpleAdapter):
 
         emo = run_needs_analyzer(emo)
 
+        # Store updated EMO as an organization-scoped episodic memory
+        try:
+            new_mem = await tools.store_memory(
+                content=json.dumps(emo.to_dict()),
+                system="working",
+                type="episodic",
+                segment="user",
+                thought=f"Agent update: {emo.entries[-1].agent_id} v{emo.emo_version}",
+                scope="organization",
+                metadata={"task_id": emo.task_id, "emo_version": emo.emo_version},
+            )
+            new_mem_id = new_mem.get("id") if isinstance(new_mem, dict) else getattr(new_mem, "id", None)
+        except Exception as e:
+            log.error("Failed to store memory: %s", e)
+            new_mem_id = None
+
+        # If incoming payload included a previous memory id, supersede it
+        prev_mem_id = None
+        meta = getattr(msg, "metadata", None) or {}
+        if isinstance(meta, dict):
+            prev_mem_id = meta.get("memory_id")
+        if not prev_mem_id and isinstance(payload, dict):
+            prev_mem_id = payload.get("memory_id")
+        if prev_mem_id:
+            try:
+                await tools.supersede_memory(prev_mem_id)
+            except Exception:
+                log.debug("Could not supersede previous memory %s", prev_mem_id)
+
         decision = emo.latest_decision()
-        out = {"emo": emo.to_dict(), "decision": decision, "next_agent": "@vendor_intelligence"}
-        # Try to send a response if tools supports send_message
+        out = {"memory_id": new_mem_id, "decision": decision, "next_agent": "@vendor_intelligence"}
         send = getattr(tools, "send_message", None)
         if callable(send):
             await send(room_id, json.dumps(out))

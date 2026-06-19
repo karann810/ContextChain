@@ -4,7 +4,7 @@ Assembles the final human-readable approval request.
 Includes the full decision archaeology trace.
 """
 
-from core.emo import EpisodicMemoryObject
+from emo import EpisodicMemoryObject
 
 
 def run(emo: EpisodicMemoryObject) -> dict:

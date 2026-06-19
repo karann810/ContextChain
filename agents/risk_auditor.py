@@ -15,7 +15,8 @@ Fallback: gpt-4o-mini via OpenAI if AIMLAPI_KEY not set.
 """
 
 import json
-from core.emo import EpisodicMemoryObject, AgentEntry, EvidenceItem, DecisionRevision
+import os
+from emo import EpisodicMemoryObject, AgentEntry, EvidenceItem, DecisionRevision
 from core.model_config import call_llm
 from rag.retriever import get_retriever
 
@@ -127,15 +128,47 @@ Rejected alternatives from Agent 2:
 Using ONLY the KB verification results, confirm or overturn the recommendation.
 Cite KB sources for every finding."""
 
-    # ── LLM audit ────────────────────────────────────────────────────────────
-    raw  = call_llm(
-        agent_id=AGENT_ID,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user",   "content": user_msg},
-        ],
-    )
-    data = json.loads(raw)
+    # ── LLM audit or FAST deterministic audit ───────────────────────────────
+    if os.getenv("FAST_RISK", "0") == "1":
+        # Deterministic audit: if any chosen_verifs show a failed critical requirement, overturn
+        critical_failures = [v for v in chosen_verifs if (v.get("claim") in ["SOC2_Type_II","data_residency_india","object_level_logging","hipaa"]) and not v.get("verified")]
+        if critical_failures:
+            data = {
+                "audit_verdict": "OVERTURN",
+                "new_recommendation": next((a for a in retriever.all_vendor_names() if a != chosen_vendor), chosen_vendor),
+                "risk_findings": [f"{f['claim']} failed: {f.get('note', '')}" for f in critical_failures],
+                "evidence_added": [f"KB::{chosen_vendor}::compliance"],
+                "reasoning_chain": ["Deterministic audit: critical compliance failure found"],
+                "overturn_reason": "Critical compliance requirement failed (KB-verified).",
+                "confidence_score": 0.95,
+            }
+        else:
+            data = {
+                "audit_verdict": "CONFIRM",
+                "new_recommendation": chosen_vendor,
+                "risk_findings": [],
+                "evidence_added": [],
+                "reasoning_chain": ["Deterministic audit: no critical KB failures found"],
+                "overturn_reason": None,
+                "confidence_score": 0.9,
+            }
+    else:
+        # LLM audit
+        raw  = ""
+        try:
+            raw  = call_llm(
+                agent_id=AGENT_ID,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user",   "content": user_msg},
+                ],
+            )
+        except Exception as e:
+            raise RuntimeError(f"LLM audit failed for {AGENT_ID}: {e}")
+        try:
+            data = json.loads(raw)
+        except Exception as e:
+            raise ValueError(f"Risk auditor returned invalid JSON: {(raw or '')[:500]!r}")
 
     # ── Build grounded evidence ───────────────────────────────────────────────
     new_evidence = []

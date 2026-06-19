@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from dotenv import load_dotenv
 load_dotenv()
 
-from pipeline import run_pipeline
+from demo.pipeline_demo import run_pipeline
 
 TEST_CASES = [
     {

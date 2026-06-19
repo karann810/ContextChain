@@ -1,9 +1,10 @@
 """
-ContextChain — Pipeline v2
-Streaming-capable. Emits events after each agent so UI updates live.
+Demo: procurement pipeline (streaming-capable).
+Frame for demo use; production systems should import EMO from `emo` and reuse agents.
 """
 
 import uuid
+from time import perf_counter
 from emo import EpisodicMemoryObject
 from core.confidence_router import route
 from agents import needs_analyzer, vendor_intelligence, risk_auditor, approval_packager
@@ -15,6 +16,7 @@ def run_pipeline_streaming(
     task_id: str = None,
     emit: Optional[Callable] = None,
     confidence_threshold: float | None = None,
+    report_timings: bool = False,
 ) -> dict:
     """
     Full ContextChain pipeline with optional live event emission.
@@ -33,10 +35,14 @@ def run_pipeline_streaming(
 
     emo = EpisodicMemoryObject(task_id=task_id, raw_input=raw_input)
     history = []
+    timings: dict = {}
 
     # ── Agent 1 ──────────────────────────────────────────────────────────
     _emit("agent_start", {"agent": "needs_analyzer_v1", "label": "Agent 1 — Needs Analyzer", "message": "Extracting requirements..."})
+    t0 = perf_counter()
     emo = needs_analyzer.run(emo)
+    t1 = perf_counter()
+    timings["needs_analyzer_v1"] = t1 - t0
     entry1 = emo.entries[-1]
     _emit("agent_complete", {
         "agent": entry1.agent_id,
@@ -58,7 +64,10 @@ def run_pipeline_streaming(
 
     # ── Agent 2 ──────────────────────────────────────────────────────────
     _emit("agent_start", {"agent": "vendor_intelligence_v1", "label": "Agent 2 — Vendor Intelligence", "message": "Scoring vendors against EMO requirements..."})
+    t0 = perf_counter()
     emo = vendor_intelligence.run(emo)
+    t1 = perf_counter()
+    timings["vendor_intelligence_v1"] = t1 - t0
     entry2 = emo.entries[-1]
     routing = route(emo, confidence_threshold)
     _emit("agent_complete", {
@@ -90,7 +99,10 @@ def run_pipeline_streaming(
     # ── Agent 3 (conditional) ────────────────────────────────────────────
     if routing["next_agent"] == "risk_auditor":
         _emit("agent_start", {"agent": "risk_auditor_v1", "label": "Agent 3 — Risk Auditor", "message": "Confidence below threshold — auditing rejected alternatives..."})
+        t0 = perf_counter()
         emo = risk_auditor.run(emo)
+        t1 = perf_counter()
+        timings["risk_auditor_v1"] = t1 - t0
         entry3 = emo.entries[-1]
         revision_data = None
         if emo.was_overturned():
@@ -123,7 +135,10 @@ def run_pipeline_streaming(
 
     # ── Agent 4 ──────────────────────────────────────────────────────────
     _emit("agent_start", {"agent": "approval_packager_v1", "label": "Agent 4 — Approval Packager", "message": "Assembling decision archaeology..."})
+    t0 = perf_counter()
     packet = approval_packager.run(emo)
+    t1 = perf_counter()
+    timings["approval_packager_v1"] = t1 - t0
 
     _emit("pipeline_complete", {
         "task_id": packet["task_id"],
@@ -143,12 +158,15 @@ def run_pipeline_streaming(
     # final snapshot after approval packager
     history.append({"agent": "approval_packager_v1", "entry": None, "emo": emo.to_dict(), "packet": packet})
 
-    return {"approval_packet": packet, "emo": emo, "history": history}
+    result = {"approval_packet": packet, "emo": emo, "history": history}
+    if report_timings:
+        result["timings"] = timings
+    return result
 
 
-def run_pipeline(raw_input: str, task_id: str = None) -> dict:
+def run_pipeline(raw_input: str, task_id: str = None, confidence_threshold: float | None = None) -> dict:
     """Backward-compatible wrapper used by tests and simple demos.
 
     Calls the streaming pipeline in non-streaming mode (no `emit`).
     """
-    return run_pipeline_streaming(raw_input=raw_input, task_id=task_id, emit=None)
+    return run_pipeline_streaming(raw_input=raw_input, task_id=task_id, emit=None, confidence_threshold=confidence_threshold)

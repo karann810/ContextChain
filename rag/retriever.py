@@ -9,12 +9,20 @@ Why this matters:
   it could hallucinate pricing, compliance scope, or feature support.
   This RAG layer gives it a ground-truth KB to query instead.
   Every EvidenceItem it returns has grounded=True and a cited source.
+
+SPEED NOTE:
+  Embeddings are cached to disk (embeddings_cache.pkl) after first build.
+  Run `python run_once_cache_embeddings.py` once locally, commit the
+  resulting .pkl file, and every future startup loads instantly instead
+  of re-encoding the whole KB.
 """
 
 from __future__ import annotations
 import json
 import os
+import pickle
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -22,6 +30,7 @@ from typing import Optional
 import numpy as np
 
 _KB_PATH = Path(__file__).parent / "vendor_kb.json"
+_CACHE_PATH = Path(__file__).parent / "embeddings_cache.pkl"
 
 # ── chunk schema ────────────────────────────────────────────────────────────
 
@@ -31,7 +40,7 @@ class KBChunk:
     vendor: str
     category: str          # pricing | compliance | features | risk | regions
     text: str              # natural-language sentence(s) for embedding
-    raw_data: dict         # original structured data for exact facts
+    raw_data: dict          # original structured data for exact facts
 
 
 # ── build chunks from KB ────────────────────────────────────────────────────
@@ -87,7 +96,7 @@ def _build_chunks(kb: dict) -> list[KBChunk]:
                 f"{name} compliance certifications — {'; '.join(compliance_items)}. "
                 f"SOC2 scope detail: {scope_note}"
             ),
-            raw_data={k: comp.get(k) for k in ["SOC2_Type_II","ISO_27001","GDPR","HIPAA","PCI_DSS","FedRAMP","SOC2_scope_notes","data_residency_supported"]},
+            raw_data={k: comp.get(k) for k in ["SOC2_Type_II", "ISO_27001", "GDPR", "HIPAA", "PCI_DSS", "FedRAMP", "SOC2_scope_notes", "data_residency_supported"]},
         ))
 
         # ── features chunk ──────────────────────────────────────────────
@@ -137,7 +146,7 @@ def _build_chunks(kb: dict) -> list[KBChunk]:
 
 class VendorRetriever:
     """
-    Embeds KB chunks once on init, then supports semantic search.
+    Embeds KB chunks once, caches to disk, then supports semantic search.
     Uses sentence-transformers (all-MiniLM-L6-v2) + FAISS.
     Falls back to keyword search if sentence-transformers unavailable.
     """
@@ -150,26 +159,83 @@ class VendorRetriever:
         self._vendor_names = [v["name"] for v in self._kb["vendors"]]
         self._index = None
         self._embeddings = None
-        self._model = None
+        self._model = None          # lazy-loaded — only needed to encode a NEW query
         self._use_semantic = False
 
         self._init_semantic()
 
     def _init_semantic(self):
+        # allow disabling heavy semantic index via env for low-latency deployments
+        if os.getenv("NO_SEMANTIC", "0") == "1":
+            print("[retriever] NO_SEMANTIC set - using keyword fallback")
+            self._use_semantic = False
+            return
         try:
+            import faiss  # just need faiss + cached embeddings to set up the index
+
+            if _CACHE_PATH.exists():
+                # ── FAST PATH — cache exists, skip model loading + encoding ──
+                t0 = time.time()
+                with open(_CACHE_PATH, "rb") as f:
+                    cached = pickle.load(f)
+                self._embeddings = cached["embeddings"]
+                cached_ids = cached["chunk_ids"]
+
+                # sanity check: cache must match current chunk set
+                current_ids = [c.chunk_id for c in self._chunks]
+                if cached_ids != current_ids:
+                    raise ValueError("Cache out of date — chunk set changed, rebuilding.")
+
+                dim = self._embeddings.shape[1]
+                self._index = faiss.IndexFlatIP(dim)
+                self._index.add(self._embeddings)
+                self._use_semantic = True
+                print(f"[retriever] Loaded cached embeddings in {time.time()-t0:.2f}s")
+                # Pre-load encoder model so first query doesn't pay the lazy-load cost
+                try:
+                    self._ensure_model_loaded()
+                except Exception:
+                    # non-fatal: model may be unavailable in some environments
+                    pass
+                return
+
+            # ── SLOW PATH — no cache, build it now (only happens once) ──
             from sentence_transformers import SentenceTransformer
-            import faiss
+            t0 = time.time()
             self._model = SentenceTransformer("all-MiniLM-L6-v2")
             texts = [c.text for c in self._chunks]
             embs = self._model.encode(texts, show_progress_bar=False, normalize_embeddings=True)
             self._embeddings = embs.astype("float32")
-            dim = embs.shape[1]
-            self._index = faiss.IndexFlatIP(dim)   # inner product = cosine on normalised vecs
+
+            # save cache for next time
+            with open(_CACHE_PATH, "wb") as f:
+                pickle.dump({
+                    "embeddings": self._embeddings,
+                    "chunk_ids": [c.chunk_id for c in self._chunks],
+                }, f)
+
+            dim = self._embeddings.shape[1]
+            self._index = faiss.IndexFlatIP(dim)
             self._index.add(self._embeddings)
             self._use_semantic = True
+            print(f"[retriever] Built + cached embeddings in {time.time()-t0:.2f}s")
+            # Pre-load encoder model to avoid lazy load on first query
+            try:
+                self._ensure_model_loaded()
+            except Exception:
+                pass
+
         except Exception as e:
-            # Graceful fallback — keyword BM25-lite
+            print(f"[retriever] Semantic search unavailable ({e}) - using keyword fallback")
             self._use_semantic = False
+
+    def _ensure_model_loaded(self):
+        """Lazy-load the encoder model only when we need to embed a NEW query string."""
+        if self._model is None:
+            from sentence_transformers import SentenceTransformer
+            t0 = time.time()
+            self._model = SentenceTransformer("all-MiniLM-L6-v2")
+            print(f"[retriever] Lazy-loaded encoder model in {time.time()-t0:.2f}s")
 
     # ── public API ──────────────────────────────────────────────────────────
 
@@ -277,7 +343,7 @@ class VendorRetriever:
     # ── internal search ──────────────────────────────────────────────────────
 
     def _semantic_search(self, query: str, top_k: int) -> list[KBChunk]:
-        import faiss
+        self._ensure_model_loaded()
         q_emb = self._model.encode([query], normalize_embeddings=True).astype("float32")
         scores, indices = self._index.search(q_emb, min(top_k, len(self._chunks)))
         return [self._chunks[i] for i in indices[0] if i >= 0]

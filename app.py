@@ -18,7 +18,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
-from pipeline import run_pipeline_streaming
+from demo.pipeline_demo import run_pipeline_streaming
 
 app = FastAPI(
     title="ContextChain API",
@@ -32,6 +32,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 class ProcurementRequest(BaseModel):
     raw_input: str
     task_id: str | None = None
+    confidence_threshold: float | None = None
 
 
 @app.get("/")
@@ -74,7 +75,7 @@ async def run_stream(req: ProcurementRequest):
 
         def run_sync():
             try:
-                run_pipeline_streaming(req.raw_input, task_id, emit)
+                run_pipeline_streaming(req.raw_input, task_id, emit, confidence_threshold=req.confidence_threshold)
             except Exception as e:
                 queue.put_nowait({"type": "error", "data": {"message": str(e)}})
             finally:
@@ -102,7 +103,7 @@ def run(req: ProcurementRequest):
     if not req.raw_input.strip():
         raise HTTPException(status_code=400, detail="raw_input cannot be empty")
     try:
-        result = run_pipeline_streaming(req.raw_input, req.task_id, emit=None)
+        result = run_pipeline_streaming(req.raw_input, req.task_id, emit=None, confidence_threshold=req.confidence_threshold)
         packet = result["approval_packet"]
         emo    = result["emo"]
         return {

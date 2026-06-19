@@ -242,6 +242,16 @@ footer{text-align:center;padding:24px;color:var(--dim);font-size:11px;border-top
     </div>
   </div>
 
+  <!-- Risk threshold slider -->
+  <div>
+    <div class="label">Risk Threshold</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <input id="risk-threshold" type="range" min="50" max="95" value="70" step="1" style="flex:1">
+      <div style="width:70px;text-align:right;font-family:var(--mono)" id="risk-threshold-val">0.70</div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px">Drag to change risk audit threshold; pipeline routing updates when you run.</div>
+  </div>
+
   <div style="flex:1"></div>
   <div style="font-size:11px;color:var(--dim);line-height:1.7;padding-top:4px">
     <strong style="color:var(--muted)">How it works:</strong><br>
@@ -508,10 +518,12 @@ async function run() {
   agentsRun = 0;
 
   try {
+    const slider = document.getElementById('risk-threshold');
+    const threshold = slider ? (parseInt(slider.value,10)/100.0) : 0.70;
     const resp = await fetch('/api/run/stream', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({raw_input: input})
+      body: JSON.stringify({raw_input: input, confidence_threshold: threshold})
     });
     if (!resp.ok) { showErr((await resp.json()).detail || 'Error'); return; }
 
@@ -583,6 +595,16 @@ function showErr(msg) {
   const b = document.getElementById('err');
   b.textContent = 'Error: ' + msg;
   b.classList.add('show');
+}
+
+// Slider behavior: update displayed value
+const sliderEl = document.getElementById('risk-threshold');
+const sliderVal = document.getElementById('risk-threshold-val');
+if (sliderEl && sliderVal) {
+  sliderVal.textContent = (parseInt(sliderEl.value,10)/100).toFixed(2);
+  sliderEl.addEventListener('input', () => {
+    sliderVal.textContent = (parseInt(sliderEl.value,10)/100).toFixed(2);
+  });
 }
 
 // Load model config on page load

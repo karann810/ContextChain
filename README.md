@@ -30,6 +30,8 @@ A structured, queryable, versioned object containing:
 
 Agents call `emo.query("rejected_alternatives", "compliance_gap")` — they query what they need, not read the whole object.
 
+Test: see `test_emo_query.py` which asserts `emo.query("rejected_alternatives", "compliance_gap == True")` returns only compliance-gap rejections.
+
 ## The 4-agent procurement pipeline
 
 ```

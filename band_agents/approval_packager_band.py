@@ -5,7 +5,7 @@ import logging
 from band import Agent
 from band.agent import SimpleAdapter
 
-from core.emo import EpisodicMemoryObject
+from emo import EpisodicMemoryObject
 from agents.approval_packager import run as run_approval_packager
 
 log = logging.getLogger(__name__)
@@ -35,8 +35,41 @@ class ApprovalPackagerAdapter(SimpleAdapter):
 
         packet = run_approval_packager(emo)
 
+        # Store final EMO snapshot
+        try:
+            new_mem = await tools.store_memory(
+                content=json.dumps(emo.to_dict()),
+                system="working",
+                type="episodic",
+                segment="user",
+                thought=f"Agent update: approval_packager v{emo.emo_version}",
+                scope="organization",
+                metadata={"task_id": emo.task_id, "emo_version": emo.emo_version},
+            )
+            new_mem_id = new_mem.get("id") if isinstance(new_mem, dict) else getattr(new_mem, "id", None)
+        except Exception as e:
+            log.error("Failed to store memory: %s", e)
+            new_mem_id = None
+
+        # Supersede previous memory if provided
+        prev_mem_id = None
+        if isinstance(meta, dict):
+            prev_mem_id = meta.get("memory_id")
+        if not prev_mem_id:
+            try:
+                payload = json.loads(msg.content)
+            except Exception:
+                payload = None
+            if isinstance(payload, dict):
+                prev_mem_id = payload.get("memory_id")
+        if prev_mem_id:
+            try:
+                await tools.supersede_memory(prev_mem_id)
+            except Exception:
+                log.debug("Could not supersede previous memory %s", prev_mem_id)
+
         decision = packet.get("final_recommendation", "")
-        out = {"emo": emo.to_dict(), "decision": decision, "approval_packet": packet, "next_agent": "@approver"}
+        out = {"memory_id": new_mem_id, "decision": decision, "approval_packet": packet, "next_agent": "@approver"}
         send = getattr(tools, "send_message", None)
         if callable(send):
             await send(room_id, json.dumps(out))
